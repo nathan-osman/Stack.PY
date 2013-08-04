@@ -230,8 +230,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'StackPY', u'Stack.PY Documentation',
-   u'Nathan Osman', 'StackPY', 'One line description of project.',
+  ('index', 'StackPY', 'Stack.PY Documentation',
+   'Nathan Osman', 'StackPY', 'Python library for accessing the Stack Exchange API.',
    'Miscellaneous'),
 ]
 
