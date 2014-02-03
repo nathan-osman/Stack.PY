@@ -5,6 +5,7 @@ from errno import EEXIST
 from hashlib import md5
 from json import dumps
 from os import makedirs, path
+from time import sleep, time
 from urllib2 import urlopen
 
 class APIDocParser(object):
@@ -12,14 +13,15 @@ class APIDocParser(object):
     Parses the Stack Exchange API documentation
     '''
     
-    _BASE_URL = 'http://api.stackexchange.com/docs'
+    _BASE_URL = 'http://api.stackexchange.com'
     
     def __init__(self, args):
         '''
         Initializes the parser
         '''
-        self._args = args
-        self._map  = {
+        self._args         = args
+        self._last_request = 0
+        self._map          = {
             'version':   self._args.version,
             'generated': datetime.now().isoformat(' '),
             'methods':   {
@@ -50,7 +52,10 @@ class APIDocParser(object):
                     return BeautifulSoup(file.read(), 'html5lib')
             except IOError:
                 pass
+        sleep(max(1 - (time() - self._last_request), 0))
+        print 'Retrieving %s...' % path
         content = urlopen(self._BASE_URL + path).read()
+        self._last_request = time()
         if self._args.use_cache:
             with open(filename, 'w') as file:
                 file.write(content)
@@ -60,15 +65,18 @@ class APIDocParser(object):
         '''
         Retrieves documentation pages and parses them
         '''
-        root = self._load_page('/')
-        for m in root.find_all('a', 'method-name'):
-            self._parse_method(m)
+        root = self._load_page('/docs')
+        for div in root.find_all('div', 'method-name'):
+            self._parse_method(div.a)
     
     def _parse_method(self, method):
         '''
         Parses the specified method
         '''
-        self._map['methods']['network'].append(method.string)
+        page = self._load_page(method['href'])
+        self._map['methods']['network'].append({
+            'name': method.string,
+        })
     
     def _write_map(self):
         '''
@@ -76,7 +84,7 @@ class APIDocParser(object):
         '''
         filename = path.join(self._args.output_dir, 'map.json')
         with open(filename, 'w') as file:
-            file.write(dumps(self._map))
+            file.write(dumps(self._map, indent=4 if self._args.prettyprint else None))
     
     def run(self):
         '''
@@ -90,8 +98,7 @@ class APIDocParser(object):
 if __name__ == '__main__':
     parser = ArgumentParser(description='Parses the documentation for the Stack Exchange API')
     parser.add_argument('--use-cache',
-                        type=bool,
-                        default=True,
+                        action='store_true',
                         help='use a local cache to store content')
     parser.add_argument('--cache-dir',
                         metavar='DIRECTORY',
@@ -103,6 +110,9 @@ if __name__ == '__main__':
                         type=str,
                         default='.',
                         help='directory to store generated map')
+    parser.add_argument('--prettyprint',
+                        action='store_true',
+                        help='indent the generated JSON')
     parser.add_argument('--version',
                         metavar='VERSION',
                         type=str,
