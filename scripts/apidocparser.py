@@ -42,16 +42,16 @@ class APIDocParser(object):
             if not e.errno == EEXIST:
                 raise
     
-    def _load_page(self, page):
+    def _fetch_page(self, page):
         '''
-        Loads the specified page either directly or from the cache
+        Fetches the specified page either directly or from the cache
         '''
         key      = md5(page).hexdigest()
         filename = path.join(self._args.cache_dir, key)
         if not self._args.bypass_cache:
             try:
                 with open(filename, 'r') as file:
-                    return BeautifulSoup(file.read(), 'html5lib')
+                    return BeautifulSoup(file.read(), self._args.parser)
             except IOError:
                 pass
         sleep(max(1 - (time() - self._last_request), 0))
@@ -61,13 +61,13 @@ class APIDocParser(object):
         if not self._args.bypass_cache:
             with open(filename, 'w') as file:
                 file.write(content)
-        return BeautifulSoup(content, 'html5lib')
+        return BeautifulSoup(content, self._args.parser)
     
-    def _parse_method(self, method):
+    def _parse_method(self, a):
         '''
         Parses the specified method
         '''
-        page   = self._load_page(method['href'])
+        page   = self._fetch_page(a['href'])
         script = page('script', text=self._PARAMETER_JS)
         self._map['methods']['network'].append({
             'name':       method.string,
@@ -78,7 +78,7 @@ class APIDocParser(object):
         '''
         Retrieves documentation pages and parses them
         '''
-        root = self._load_page('/docs')
+        root = self._fetch_page('/docs')
         for div in root.find_all('div', 'method-name'):
             self._parse_method(div.a)
     
@@ -116,6 +116,16 @@ if __name__ == '__main__':
                         type=str,
                         default='cache',
                         help='directory to store cached content')
+    parser.add_argument('--version',
+                        metavar='VERSION',
+                        type=str,
+                        required=True,
+                        help='API version used in generated map')
+    parser.add_argument('--parser',
+                        metavar='PARSER',
+                        choices=['lxml', 'html5lib',],
+                        required=True,
+                        help='parser for BeautifulSoup to use')
     parser.add_argument('--output-dir',
                         metavar='DIRECTORY',
                         type=str,
@@ -124,9 +134,4 @@ if __name__ == '__main__':
     parser.add_argument('--prettyprint',
                         action='store_true',
                         help='indent the generated JSON')
-    parser.add_argument('--version',
-                        metavar='VERSION',
-                        type=str,
-                        required=True,
-                        help='API version used in generated map')
     APIDocParser(parser.parse_args()).run()
